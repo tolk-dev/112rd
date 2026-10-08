@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Директор — журнал цеха</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;font-size:15px;background:#eae8e4;color:#222}
+header{background:#dddbd7;border-bottom:1px solid #b8b6b2;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+h1{font-size:18px}.upd{font-size:13px;color:#666}
+main{max-width:900px;margin:0 auto;padding:10px 12px 60px}
+.card{background:#fff;border-radius:10px;padding:12px;margin:10px 0}
+.card h3{font-size:13px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.big-n{font-size:40px;font-weight:700;line-height:1}
+.tag{display:inline-block;background:#fde0e0;color:#8a1f1f;border-radius:12px;padding:3px 10px;margin:3px 3px 0 0;font-size:14px}
+.tag.out{background:#e4e2de;color:#666}
+.bar{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap}
+.btn,input,select{padding:8px 12px;font-size:14px;border:1px solid #999;border-radius:6px;background:#f4f2ee}
+.btn{cursor:pointer}.btn:hover{background:#e4e2de}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:6px 8px;border-bottom:1px solid #e2e0dc;text-align:left}
+th{background:#d8d6d2;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+tr.warn td{background:#fff0c9}tr.open td{background:#fff5f5}
+.muted{color:#888;font-size:13px}.err{color:#a11;margin:8px 0}
+.scroll{overflow-x:auto}
+#login{max-width:320px;margin:60px auto;text-align:center}
+</style>
+</head>
+<body>
+<header><h1>Журнал цеха — директор</h1><span class="upd" id="upd"></span></header>
+<main id="app"></main>
+<script>
+const API_URL='https://script.google.com/macros/s/AKfycbwyvRiJEwII4EDTcNHLNgRqPPmqivdJVPGsdZqOjy0NjGpg8kSAvw25pnaEZSOR2-Ur/exec';
+
+const $=id=>document.getElementById(id);
+const p2=n=>String(n).padStart(2,'0');
+const hhmm=t=>{const d=new Date(t);return p2(d.getHours())+':'+p2(d.getMinutes());};
+const dmy=t=>{const d=new Date(t);return p2(d.getDate())+'.'+p2(d.getMonth()+1)+'.'+d.getFullYear();};
+const dur=ms=>{const m=Math.round(ms/60000);return Math.floor(m/60)+':'+p2(m%60);};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const monthOf=d=>d.getFullYear()+'-'+p2(d.getMonth()+1);
+
+let pin=sessionStorage.getItem('pin')||'', D=null, month=monthOf(new Date()), timer=null;
+
+async function load(){
+  try{
+    const r=await (await fetch(API_URL+'?'+new URLSearchParams({action:'report',pin}))).json();
+    if(!r.ok){
+      if(/PIN/.test(r.error)){sessionStorage.removeItem('pin');pin='';}
+      return login(r.error);
+    }
+    D=r;sessionStorage.setItem('pin',pin);
+    $('upd').textContent='Обновлено '+hhmm(Date.now())+':'+p2(new Date().getSeconds());
+    render();
+    if(!timer)timer=setInterval(load,20000);
+  }catch(e){
+    if(D){$('upd').textContent='Нет связи, показаны прежние данные';}
+    else login('Нет связи с журналом: '+e.message);
+  }
+}
+
+function login(error){
+  clearInterval(timer);timer=null;
+  $('app').innerHTML=`<div id="login" class="card"><h3>Вход для директора</h3>
+    <div class="bar" style="justify-content:center"><input id="pin" type="password" placeholder="PIN" style="width:140px">
+    <button class="btn" id="ok">Войти</button></div>${error?`<div class="err">${esc(error)}</div>`:''}</div>`;
+  const go=()=>{pin=$('pin').value.trim();if(pin)load();};
+  $('ok').onclick=go;$('pin').onkeydown=e=>{if(e.key==='Enter')go();};$('pin').focus();
+}
+
+function render(){
+  const now=D.staff.filter(s=>s.since).sort((a,b)=>a.since-b.since);
+  const [y,m]=month.split('-').map(Number);
+  const a=new Date(y,m-1,1).getTime(), b=new Date(y,m,1).getTime();
+  let tot=0;
+  const rep=D.staff.map(s=>{
+    const rs=D.log.filter(r=>r.name===s.name&&r.in>=a&&r.in<b&&r.out);
+    const ms=rs.reduce((x,r)=>x+(r.out-r.in),0);tot+=ms;
+    return `<tr><td>${esc(s.name)}</td><td>${rs.length}</td><td>${rs.length?dur(ms):'—'}</td></tr>`;
+  }).join('');
+  const logRows=D.log.slice().reverse().slice(0,100).map(r=>{
+    const ms=(r.out||D.now)-r.in;
+    const warn=r.out?(ms<3600000||ms>14*3600000):ms>14*3600000;
+    return `<tr class="${r.out?'':'open'} ${warn?'warn':''}"><td>${esc(r.name)}</td><td>${dmy(r.in)} ${hhmm(r.in)}</td>
+      <td>${r.out?hhmm(r.out):'<span class="muted">в цеху</span>'}</td><td>${r.out?dur(ms):'—'}</td></tr>`;
+  }).join('');
+  $('app').innerHTML=`
+    <div class="card"><h3>Сейчас в цеху</h3><div class="big-n">${now.length}
+      <span class="muted" style="font-size:16px"> из ${D.staff.length}</span></div>
+      <div>${now.map(s=>`<span class="tag">${esc(s.name)} · с ${hhmm(s.since)}</span>`).join('')||'<span class="muted">никого</span>'}</div>
+      <div style="margin-top:6px">${D.staff.filter(s=>!s.since).map(s=>`<span class="tag out">${esc(s.name)}</span>`).join('')}</div></div>
+    <div class="card"><h3>Часы за месяц</h3>
+      <div class="bar"><input type="month" id="mon" value="${month}"><button class="btn" id="csv">Экспорт журнала CSV</button></div>
+      <div class="scroll"><table><tr><th>ФИО</th><th>Смен</th><th>Часов</th></tr>${rep}
+      <tr><th>Итого</th><th></th><th>${dur(tot)}</th></tr></table></div>
+      <p class="muted" style="margin-top:6px">Незакрытые смены (без «Ушёл») в итоги не входят.</p></div>
+    <div class="card"><h3>Последние 100 отметок</h3><p class="muted" style="margin-bottom:6px">Жёлтым — смены короче 1 ч или длиннее 14 ч. Исправления делаются в Google Таблице.</p>
+      <div class="scroll"><table><tr><th>ФИО</th><th>Приход</th><th>Уход</th><th>Часы</th></tr>${logRows}</table></div></div>`;
+  $('mon').onchange=e=>{month=e.target.value||month;render();};
+  $('csv').onclick=()=>{
+    let c='\uFEFFФИО;Дата;Приход;Уход;Часы\n';
+    D.log.forEach(r=>{c+=[r.name,dmy(r.in),hhmm(r.in),r.out?hhmm(r.out):'',r.out?dur(r.out-r.in):''].join(';')+'\n';});
+    const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([c],{type:'text/csv'}));
+    l.download='journal.csv';l.click();
+  };
+}
+pin?load():login('');
+</script>
+</body>
+</html>
