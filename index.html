@@ -3,32 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Директор — журнал цеха</title>
+<title>Журнал цеха</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',system-ui,sans-serif;font-size:15px;background:#eae8e4;color:#222}
-header{background:#dddbd7;border-bottom:1px solid #b8b6b2;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-h1{font-size:18px}.upd{font-size:13px;color:#666}
-main{max-width:900px;margin:0 auto;padding:10px 12px 60px}
-.card{background:#fff;border-radius:10px;padding:12px;margin:10px 0}
-.card h3{font-size:13px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
-.big-n{font-size:40px;font-weight:700;line-height:1}
-.tag{display:inline-block;background:#fde0e0;color:#8a1f1f;border-radius:12px;padding:3px 10px;margin:3px 3px 0 0;font-size:14px}
+html{-webkit-text-size-adjust:100%;max-width:100%;overflow-x:hidden}
+body{font-family:'Segoe UI',system-ui,sans-serif;font-size:13.5px;background:#eae8e4;color:#222;max-width:100%;overflow-x:hidden}
+header{background:#dddbd7;border-bottom:1px solid #b8b6b2;padding:9px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+h1{font-size:16px}.upd{font-size:12px;color:#666}
+main{max-width:900px;margin:0 auto;padding:8px 10px 50px}
+.card{background:#fff;border-radius:10px;padding:11px;margin:9px 0;min-width:0}
+.card h3{font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+.big-n{font-size:36px;font-weight:700;line-height:1}
+.tag{display:inline-block;background:#d9f0d6;color:#1f5c22;border-radius:12px;padding:3px 9px;margin:3px 3px 0 0;font-size:12.5px;max-width:100%;overflow-wrap:anywhere}
 .tag.out{background:#e4e2de;color:#666}
 .bar{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap}
-.btn,input,select{padding:8px 12px;font-size:14px;border:1px solid #999;border-radius:6px;background:#f4f2ee}
+.btn,input,select{padding:7px 10px;font-size:12.5px;border:1px solid #999;border-radius:6px;background:#f4f2ee;max-width:100%;min-width:0}
+@supports (-webkit-touch-callout:none){input,select{font-size:16px}}
 .btn{cursor:pointer}.btn:hover{background:#e4e2de}
-table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{padding:6px 8px;border-bottom:1px solid #e2e0dc;text-align:left}
-th{background:#d8d6d2;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
-tr.warn td{background:#fff0c9}tr.open td{background:#fff5f5}
-.muted{color:#888;font-size:13px}.err{color:#a11;margin:8px 0}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:5px 6px;border-bottom:1px solid #e2e0dc;text-align:left}
+th{background:#d8d6d2;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+tr.open td{background:#eaf7e7}tr.warn td{background:#fff0c9}
+.muted{color:#888;font-size:12px}.err{color:#a11;margin:8px 0}
 .scroll{overflow-x:auto}
 #login{max-width:320px;margin:60px auto;text-align:center}
 </style>
 </head>
 <body>
-<header><h1>Журнал цеха — директор</h1><span class="upd" id="upd"></span></header>
+<header><h1>Журнал цеха</h1><span class="upd" id="upd"></span></header>
 <main id="app"></main>
 <script>
 const API_URL='https://script.google.com/macros/s/AKfycbwyvRiJEwII4EDTcNHLNgRqPPmqivdJVPGsdZqOjy0NjGpg8kSAvw25pnaEZSOR2-Ur/exec';
@@ -41,7 +43,7 @@ const dur=ms=>{const m=Math.round(ms/60000);return Math.floor(m/60)+':'+p2(m%60)
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const monthOf=d=>d.getFullYear()+'-'+p2(d.getMonth()+1);
 
-let pin=sessionStorage.getItem('pin')||'', D=null, month=monthOf(new Date()), timer=null;
+let pin=sessionStorage.getItem('pin')||'', D=null, month=monthOf(new Date()), timer=null, fname='';
 
 async function load(){
   try{
@@ -79,7 +81,7 @@ function render(){
     const ms=rs.reduce((x,r)=>x+(r.out-r.in),0);tot+=ms;
     return `<tr><td>${esc(s.name)}</td><td>${rs.length}</td><td>${rs.length?dur(ms):'—'}</td></tr>`;
   }).join('');
-  const logRows=D.log.slice().reverse().slice(0,100).map(r=>{
+  const logRows=D.log.filter(r=>!fname||r.name===fname).reverse().slice(0,20).map(r=>{
     const ms=(r.out||D.now)-r.in;
     const warn=r.out?(ms<3600000||ms>14*3600000):ms>14*3600000;
     return `<tr class="${r.out?'':'open'} ${warn?'warn':''}"><td>${esc(r.name)}</td><td>${dmy(r.in)} ${hhmm(r.in)}</td>
@@ -87,16 +89,19 @@ function render(){
   }).join('');
   $('app').innerHTML=`
     <div class="card"><h3>Сейчас в цеху</h3><div class="big-n">${now.length}
-      <span class="muted" style="font-size:16px"> из ${D.staff.length}</span></div>
+      <span class="muted" style="font-size:14.5px"> из ${D.staff.length}</span></div>
       <div>${now.map(s=>`<span class="tag">${esc(s.name)} · с ${hhmm(s.since)}</span>`).join('')||'<span class="muted">никого</span>'}</div>
       <div style="margin-top:6px">${D.staff.filter(s=>!s.since).map(s=>`<span class="tag out">${esc(s.name)}</span>`).join('')}</div></div>
     <div class="card"><h3>Часы за месяц</h3>
       <div class="bar"><input type="month" id="mon" value="${month}"><button class="btn" id="csv">Экспорт журнала CSV</button></div>
-      <div class="scroll"><table><tr><th>ФИО</th><th>Смен</th><th>Часов</th></tr>${rep}
+      <div class="scroll"><table><tr><th>Имя</th><th>Смен</th><th>Часов</th></tr>${rep}
       <tr><th>Итого</th><th></th><th>${dur(tot)}</th></tr></table></div>
       <p class="muted" style="margin-top:6px">Незакрытые смены (без «Ушёл») в итоги не входят.</p></div>
-    <div class="card"><h3>Последние 100 отметок</h3><p class="muted" style="margin-bottom:6px">Жёлтым — смены короче 1 ч или длиннее 14 ч. Исправления делаются в Google Таблице.</p>
-      <div class="scroll"><table><tr><th>ФИО</th><th>Приход</th><th>Уход</th><th>Часы</th></tr>${logRows}</table></div></div>`;
+    <div class="card"><h3>Последние 20 отметок</h3>
+      <div class="bar"><select id="fn"><option value="">Все сотрудники</option>${D.staff.map(s=>`<option value="${esc(s.name)}"${s.name===fname?' selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
+      <p class="muted" style="margin-bottom:6px">Жёлтым — смены короче 1 ч или длиннее 14 ч.</p>
+      <div class="scroll"><table><tr><th>Имя</th><th>Приход</th><th>Уход</th><th>Часы</th></tr>${logRows||'<tr><td colspan="4" class="muted">Записей нет</td></tr>'}</table></div></div>`;
+  $('fn').onchange=e=>{fname=e.target.value;render();};
   $('mon').onchange=e=>{month=e.target.value||month;render();};
   $('csv').onclick=()=>{
     let c='\uFEFFФИО;Дата;Приход;Уход;Часы\n';
